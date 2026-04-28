@@ -3,86 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OTDR SOR to Excel Pro</title>
+    <title>SOR Expert Converter</title>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@optic-fiber/sor@1.0.1/dist/index.min.js"></script>
+    <script type="module">
+        import sorParser from 'https://cdn.skypack.dev/otdr-sor';
+
+        window.processSOR = async () => {
+            const fileInput = document.getElementById('fileInput');
+            const status = document.getElementById('status');
+            const files = Array.from(fileInput.files);
+
+            if (files.length === 0) return alert("Επιλέξτε αρχεία .sor");
+
+            status.innerHTML = "🔄 Επεξεργασία...";
+            const excelRows = [];
+
+            for (const file of files) {
+                try {
+                    const buffer = await file.arrayBuffer();
+                    const rawData = sorParser.parse(buffer);
+
+                    // Εξαγωγή δεδομένων όπως στο Fiberizer
+                    const fiberId = rawData.generalParameters.fiberId || "N/A";
+                    const wavelength = rawData.fixedParameters.wavelength;
+                    const events = rawData.eventTable.events;
+                    const lastEvent = events[events.length - 1];
+
+                    excelRows.push({
+                        "Αρχείο": file.name,
+                        "Fiber ID": fiberId,
+                        "Wavelength (nm)": wavelength,
+                        "Total Distance (km)": lastEvent.distance.toFixed(4),
+                        "Total Loss (dB)": lastEvent.loss.toFixed(3),
+                        "Events Count": events.length,
+                        "Date": rawData.generalParameters.dateTime
+                    });
+                } catch (err) {
+                    console.error("Error parsing:", file.name, err);
+                }
+            }
+
+            // Δημιουργία Excel
+            const worksheet = XLSX.utils.json_to_sheet(excelRows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "OTDR_Report");
+            XLSX.writeFile(workbook, "OTDR_Final_Report.xlsx");
+            
+            status.innerHTML = "✅ Ολοκληρώθηκε! Το Excel κατέβηκε.";
+        };
+    </script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eceff1; padding: 30px; color: #333; }
-        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
-        h1 { color: #1a73e8; font-size: 24px; }
-        .drop-zone { border: 3px dashed #1a73e8; padding: 40px; border-radius: 10px; margin: 20px 0; cursor: pointer; background: #f8fbff; transition: 0.3s; }
-        .drop-zone:hover { background: #e3f2fd; }
-        button { background: #1a73e8; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 18px; cursor: pointer; width: 100%; font-weight: bold; }
-        button:disabled { background: #ccc; }
-        #log { margin-top: 20px; text-align: left; font-size: 13px; max-height: 150px; overflow-y: auto; padding: 10px; background: #f1f1f1; border-radius: 5px; }
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: #1e1e1e; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; border: 1px solid #333; }
+        input { margin: 20px 0; color: #bbb; }
+        button { background: #00e676; color: #000; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.2s; }
+        button:hover { background: #00c853; transform: scale(1.05); }
+        #status { margin-top: 20px; color: #00e676; }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <h1>OTDR ➔ Excel Converter</h1>
-    <p>Μετατρέψτε τα αρχεία .sor σε καθαρό πίνακα Excel</p>
-    
-    <div class="drop-zone" onclick="document.getElementById('fileInput').click()">
-        Σύρετε τα αρχεία εδώ ή κάντε κλικ<br>
-        <strong>(Batch Upload - Πολλά αρχεία μαζί)</strong>
-        <input type="file" id="fileInput" accept=".sor" multiple style="display:none">
+    <div class="card">
+        <h2>SOR ➔ EXCEL PRO</h2>
+        <p>Μετατροπή χωρίς Cloud & API</p>
+        <input type="file" id="fileInput" accept=".sor" multiple>
+        <br>
+        <button onclick="processSOR()">ΕΞΑΓΩΓΗ ΤΩΡΑ</button>
+        <div id="status"></div>
     </div>
-
-    <button id="convertBtn">Δημιουργία Excel Αναφοράς</button>
-    <div id="log">Έτοιμο για χρήση.</div>
-</div>
-
-<script>
-    const fileInput = document.getElementById('fileInput');
-    const convertBtn = document.getElementById('convertBtn');
-    const log = document.getElementById('log');
-
-    convertBtn.onclick = async () => {
-        const files = Array.from(fileInput.files);
-        if (files.length === 0) return alert("Επιλέξτε αρχεία πρώτα!");
-
-        convertBtn.disabled = true;
-        log.innerHTML = "Έναρξη επεξεργασίας...<br>";
-        
-        const finalResults = [];
-
-        for (const file of files) {
-            try {
-                const buffer = await file.arrayBuffer();
-                // Χρήση της επαγγελματικής βιβλιοθήκης για το parsing
-                const sor = window.sor.parse(buffer); 
-                
-                // Εξαγωγή των σημαντικών δεδομένων
-                const mainInfo = {
-                    "Όνομα Αρχείου": file.name,
-                    "Fiber ID": sor.generalParameters.fiberId || "N/A",
-                    "Μήκος Κύματος": sor.fixedParameters.wavelength + " nm",
-                    "Ημερομηνία": sor.generalParameters.dateTime,
-                    "Συνολικά Συμβάντα": sor.eventTable.events.length,
-                    "Συνολικό Μήκος (km)": (sor.eventTable.events[sor.eventTable.events.length - 1].eventDistance).toFixed(4),
-                    "Συνολική Απώλεια (dB)": (sor.eventTable.events[sor.eventTable.events.length - 1].eventLoss).toFixed(3)
-                };
-
-                finalResults.push(mainInfo);
-                log.innerHTML += `✅ Το αρχείο ${file.name} αναλύθηκε.<br>`;
-            } catch (err) {
-                log.innerHTML += `❌ Σφάλμα στο ${file.name}: ${err.message}<br>`;
-            }
-        }
-
-        // Δημιουργία του Excel
-        const worksheet = XLSX.utils.json_to_sheet(finalResults);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "OTDR_Report");
-        
-        // Κατέβασμα
-        XLSX.writeFile(workbook, `OTDR_Batch_Report_${Date.now()}.xlsx`);
-        
-        log.innerHTML += "<strong>Ολοκληρώθηκε! Το αρχείο Excel κατεβαίνει...</strong>";
-        convertBtn.disabled = false;
-    };
-</script>
-
 </body>
 </html>
