@@ -2,65 +2,113 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <title>SOR to Excel PRO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal SOR to Excel Converter</title>
+    
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-    <script src="https://unpkg.com/otdr-js@1.1.0/dist/otdr.browser.js"></script>
+
     <style>
-        body { background: #0d0d0d; color: white; font-family: sans-serif; text-align: center; padding: 50px; }
-        .box { border: 2px dashed #8a2be2; padding: 40px; border-radius: 20px; cursor: pointer; }
-        .btn { background: #8a2be2; color: white; padding: 15px 40px; border-radius: 50px; border: none; margin-top: 20px; cursor: pointer; font-weight: bold; }
-        #status { margin-top: 20px; color: #888; }
+        :root { --main-color: #8a2be2; --bg-color: #0f0f0f; }
+        body { background-color: var(--bg-color); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        .container { width: 90%; max-width: 800px; text-align: center; background: #1a1a1a; padding: 40px; border-radius: 20px; box-shadow: 0 0 30px rgba(138, 43, 226, 0.3); }
+        h1 { margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; }
+        .creator { color: var(--main-color); font-weight: bold; margin-bottom: 30px; font-size: 0.9rem; }
+        .drop-zone { border: 3px dashed var(--main-color); border-radius: 15px; padding: 50px; background: rgba(138, 43, 226, 0.05); cursor: pointer; transition: 0.3s; }
+        .drop-zone:hover { background: rgba(138, 43, 226, 0.15); }
+        .btn { margin-top: 30px; background: var(--main-color); color: white; border: none; padding: 15px 45px; border-radius: 50px; font-weight: bold; cursor: pointer; font-size: 1.1rem; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .btn:hover { transform: scale(1.05); }
+        #status { margin-top: 25px; font-family: monospace; color: #aaa; }
     </style>
 </head>
 <body>
-    <h1>SOR TO EXCEL (ACCURATE MODE)</h1>
-    <div class="box" onclick="document.getElementById('files').click()">
-        Σύρετε ή επιλέξτε τα αρχεία .sor
-        <input type="file" id="files" multiple style="display:none">
+
+    <div class="container">
+        <h1>SOR TO EXCEL CONVERTER</h1>
+        <div class="creator">PROFESSIONAL VERSION - STANDARDIZED SOR PARSER</div>
+
+        <div class="drop-zone" onclick="document.getElementById('file-input').click()">
+            <p>Σύρετε τα αρχεία .sor εδώ ή κάντε κλικ για επιλογή</p>
+            <input type="file" id="file-input" multiple style="display:none">
+        </div>
+
+        <button class="btn" onclick="processFiles()">ΜΕΤΑΤΡΟΠΗ ΣΕ EXCEL</button>
+        <div id="status"></div>
     </div>
-    <button class="btn" onclick="convert()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
-    <div id="status"></div>
 
     <script>
-        async function convert() {
-            const fileInput = document.getElementById('files');
+        async function processFiles() {
+            const fileInput = document.getElementById('file-input');
             const status = document.getElementById('status');
-            if (fileInput.files.length === 0) return alert("Επιλέξτε αρχεία");
+            const files = fileInput.files;
 
-            status.innerText = "Ανάλυση ακριβείας... ⏳";
-            const results = [];
+            if (files.length === 0) {
+                alert("Παρακαλώ επιλέξτε τουλάχιστον ένα αρχείο .sor");
+                return;
+            }
 
-            for (const file of fileInput.files) {
+            status.innerText = "Ανάλυση αρχείων σε εξέλιξη... ⏳";
+            let allData = [];
+
+            for (let file of files) {
                 try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    // Χρήση του επαγγελματικού parser
-                    const sor = new otdr.Sor(arrayBuffer);
-                    
-                    const data = {
-                        "Αρχείο": file.name,
-                        "Wavelength": sor.fixedParams.wavelength,
-                        "Pulse (ns)": sor.fixedParams.pulseWidth,
-                        "Total Length (m)": sor.fixedParams.fiberLength.toFixed(2)
+                    const buffer = await file.arrayBuffer();
+                    const view = new DataView(buffer);
+                    const bytes = new Uint8Array(buffer);
+
+                    // 1. Λειτουργία εύρεσης Block από το MAP του αρχείου
+                    const getBlockOffset = (blockName) => {
+                        let decoder = new TextDecoder();
+                        // Διαβάζουμε τα πρώτα 500 bytes που περιέχουν το Map
+                        let header = decoder.decode(bytes.slice(0, 500));
+                        let index = header.indexOf(blockName);
+                        if (index === -1) return -1;
+                        // Το Offset είναι Uint32 αμέσως μετά το όνομα του block και την έκδοση
+                        return view.getUint32(index + blockName.length, true);
                     };
 
-                    // Διάβασμα όλων των Events
-                    sor.keyEvents.forEach((ev, i) => {
-                        data[`Ev${i+1} Dist(m)`] = ev.distance.toFixed(2);
-                        data[`Ev${i+1} Loss(dB)`] = ev.loss.toFixed(3);
-                        data[`Ev${i+1} Refl(dB)`] = ev.reflectance.toFixed(1);
-                    });
+                    let row = { "Αρχείο": file.name };
 
-                    results.push(data);
-                } catch (e) {
-                    console.error("Σφάλμα στο αρχείο " + file.name, e);
+                    // 2. Ανάγνωση FxdParams (Μήκος, Wavelength)
+                    let fxdPos = getBlockOffset("FxdParams");
+                    if (fxdPos !== -1) {
+                        let wave = view.getUint32(fxdPos + 2, true);
+                        let rawTotalDist = view.getUint32(fxdPos + 26, true);
+                        row["Wavelength"] = (wave / 1000).toFixed(0) + "nm";
+                        row["Συνολικό Μήκος (m)"] = (rawTotalDist * 0.0001).toFixed(2);
+                    }
+
+                    // 3. Ανάγνωση KeyEvents (Πίνακας Συμβάντων & Loss)
+                    let keyPos = getBlockOffset("KeyEvents");
+                    if (keyPos !== -1) {
+                        let numEvents = view.getUint16(keyPos + 10, true);
+                        let ptr = keyPos + 12;
+
+                        for (let i = 1; i <= numEvents; i++) {
+                            let dist = view.getUint32(ptr, true) * 0.0001;
+                            let loss = view.getInt16(ptr + 4, true) * 0.001;
+                            let refl = view.getInt32(ptr + 6, true) * -0.001;
+
+                            row[`Ev${i} Απόσταση(m)`] = dist.toFixed(2);
+                            row[`Ev${i} Loss(dB)`] = loss.toFixed(3);
+                            row[`Ev${i} Reflect(dB)`] = (refl > 0 && refl < 100) ? "-" + refl.toFixed(1) : "N/A";
+                            
+                            ptr += 12; // Κάθε event είναι 12 bytes βάσει προτύπου
+                        }
+                    }
+
+                    allData.push(row);
+                } catch (err) {
+                    console.error("Σφάλμα στο αρχείο " + file.name, err);
                 }
             }
 
-            const ws = XLSX.utils.json_to_sheet(results);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "OTDR Data");
-            XLSX.writeFile(wb, "OTDR_Correct_Report.xlsx");
-            status.innerText = "Ολοκληρώθηκε! ✅";
+            // Δημιουργία και λήψη του Excel
+            const worksheet = XLSX.utils.json_to_sheet(allData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "OTDR_Results");
+            XLSX.writeFile(workbook, "OTDR_Universal_Report.xlsx");
+
+            status.innerText = "Η μετατροπή ολοκληρώθηκε επιτυχώς! ✅";
         }
     </script>
 </body>
