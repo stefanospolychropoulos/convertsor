@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOR to Excel PRO - Stefanos Polychropoulos</title>
+    <title>Universal SOR Converter - Polychropoulos</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#8a2be2">
@@ -12,45 +12,31 @@
     <style>
         :root { --purple: #8a2be2; --dark: #0d0d0d; }
         body { 
-            background-color: var(--dark); 
-            color: white; 
-            font-family: 'Segoe UI', sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            min-height: 100vh; 
-            margin: 0; 
+            background-color: var(--dark); color: white; 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            min-height: 100vh; margin: 0; text-align: center;
         }
-        .container { text-align: center; width: 90%; max-width: 700px; }
-        h1 { font-size: 2.2rem; letter-spacing: 2px; text-shadow: 0 0 20px var(--purple); margin-bottom: 5px; }
-        .creator { color: var(--purple); font-weight: bold; font-size: 0.9rem; margin-bottom: 40px; letter-spacing: 2px; }
+        .container { width: 95%; max-width: 800px; padding: 20px; }
+        h1 { font-size: 2.2rem; letter-spacing: 2px; text-shadow: 0 0 20px var(--purple); margin-bottom: 5px; text-transform: uppercase; }
+        .creator { color: var(--purple); font-weight: bold; font-size: 0.9rem; margin-bottom: 40px; letter-spacing: 3px; }
         
         .drop-zone { 
-            border: 2px dashed var(--purple); 
-            border-radius: 25px; 
-            padding: 80px 20px; 
-            background: rgba(138, 43, 226, 0.05); 
-            cursor: pointer; 
-            transition: 0.3s; 
+            border: 2px dashed var(--purple); border-radius: 30px; 
+            padding: 80px 20px; background: rgba(138, 43, 226, 0.05); 
+            cursor: pointer; transition: 0.3s; 
         }
         .drop-zone:hover { background: rgba(138, 43, 226, 0.15); border-color: #a04ef6; }
         
         .btn { 
-            margin-top: 35px; 
-            background: var(--purple); 
-            color: white; 
-            border: none; 
-            padding: 18px 60px; 
-            border-radius: 50px; 
-            font-weight: bold; 
-            font-size: 1.1rem; 
-            cursor: pointer; 
-            box-shadow: 0 0 15px rgba(138, 43, 226, 0.4);
+            margin-top: 40px; background: var(--purple); color: white; 
+            border: none; padding: 20px 70px; border-radius: 50px; 
+            font-weight: bold; font-size: 1.2rem; cursor: pointer; 
+            box-shadow: 0 0 20px rgba(138, 43, 226, 0.4); transition: 0.2s;
         }
-        .btn:hover { background: #a04ef6; transform: scale(1.05); }
+        .btn:hover { background: #a04ef6; transform: scale(1.03); }
         
-        #status { margin-top: 25px; color: #888; font-family: monospace; font-size: 0.85rem; }
+        #status { margin-top: 30px; color: #888; font-family: monospace; font-size: 0.9rem; }
         input[type="file"] { display: none; }
     </style>
 </head>
@@ -61,27 +47,29 @@
         <div class="creator">CREATOR STEFANOS POLYCHROPOULOS</div>
 
         <div class="drop-zone" onclick="document.getElementById('file-input').click()">
-            <div style="font-size: 50px; margin-bottom: 10px;">📊</div>
-            <p>Drag & Drop τον φάκελο με τα .sor εδώ<br>ή κάντε κλικ για αναζήτηση</p>
+            <div style="font-size: 60px; margin-bottom: 15px;">📊</div>
+            <p>Σύρετε τον φάκελο με τα αρχεία .sor εδώ<br>ή κάντε κλικ για επιλογή</p>
             <input type="file" id="file-input" webkitdirectory directory multiple>
         </div>
 
-        <button class="btn" onclick="processSorFiles()">ΕΞΑΓΩΓΗ EXCEL</button>
+        <button class="btn" onclick="processSorFiles()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
         <div id="status"></div>
     </div>
 
     <script>
         // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(err => console.log(err));
+            });
         }
 
         async function processSorFiles() {
             const input = document.getElementById('file-input');
             const status = document.getElementById('status');
-            if (!input.files.length) return alert("Παρακαλώ επιλέξτε φάκελο!");
+            if (!input.files.length) return alert("Παρακαλώ επιλέξτε έναν φάκελο!");
 
-            status.innerText = "Επεξεργασία αρχείων EXFO... ⏳";
+            status.innerText = "Ανάλυση αρχείων (Universal Mode)... ⏳";
             let results = [];
 
             for (let file of input.files) {
@@ -90,63 +78,64 @@
                 try {
                     const buffer = await file.arrayBuffer();
                     const view = new DataView(buffer);
-                    const decoder = new TextDecoder('ascii');
-                    const content = decoder.decode(buffer);
+                    const bytes = new Uint8Array(buffer);
 
-                    let fileData = { "File Name": file.name };
+                    // Universal Block Finder
+                    const findBlock = (name) => {
+                        for (let i = 0; i < bytes.length - name.length; i++) {
+                            let match = true;
+                            for (let j = 0; j < name.length; j++) {
+                                if (bytes[i + j] !== name.charCodeAt(j)) { match = false; break; }
+                            }
+                            if (match) return i;
+                        }
+                        return -1;
+                    };
 
-                    // --- BINARY PARSING LOGIC ---
-                    
-                    // 1. General Parameters (Wavelength)
-                    if (content.includes("GenParams")) {
-                        let pos = content.indexOf("GenParams");
-                        fileData["Wavelength (nm)"] = view.getUint32(pos + 10, true) / 1000;
+                    let data = { "Όνομα Αρχείου": file.name };
+
+                    // 1. Wavelength (GenParams)
+                    let pGen = findBlock("GenParams");
+                    if (pGen !== -1) {
+                        data["Wavelength (nm)"] = view.getUint32(pGen + 10, true) / 1000;
                     }
 
-                    // 2. Fixed Parameters (Pulse, Total Length)
-                    if (content.includes("FixParams")) {
-                        let pos = content.indexOf("FixParams");
-                        fileData["Pulse (ns)"] = view.getUint32(pos + 14, true) / 10;
-                        // Συνολικό μήκος σε μέτρα (μετατροπή από mm)
-                        fileData["Total Length (m)"] = (view.getUint32(pos + 26, true) * 10**-4).toFixed(2);
+                    // 2. Pulse & Total Length (FixParams)
+                    let pFix = findBlock("FixParams");
+                    if (pFix !== -1) {
+                        data["Pulse (ns)"] = view.getUint32(pFix + 14, true) / 10;
+                        let rawDist = view.getUint32(pFix + 26, true);
+                        data["Total Length (m)"] = (rawDist * 10**-4).toFixed(2);
                     }
 
-                    // 3. Key Events (Events Table)
-                    if (content.includes("KeyEvents")) {
-                        let pos = content.indexOf("KeyEvents");
-                        let eventCount = view.getUint16(pos + 10, true);
-                        fileData["Total Events"] = eventCount;
+                    // 3. Events (KeyEvents)
+                    let pKey = findBlock("KeyEvents");
+                    if (pKey !== -1) {
+                        let count = view.getUint16(pKey + 10, true);
+                        data["Total Events"] = count;
+                        
+                        let ptr = pKey + 12;
+                        for (let i = 1; i <= count; i++) {
+                            if (ptr + 12 > buffer.byteLength) break;
+                            let dist = view.getUint32(ptr, true) * 10**-4;
+                            let loss = view.getInt16(ptr + 4, true) / 1000;
+                            let refl = view.getInt32(ptr + 6, true) / -1000;
 
-                        let eventPtr = pos + 12;
-                        for (let i = 1; i <= eventCount; i++) {
-                            // Απόσταση Event (4 bytes)
-                            let dist = view.getUint32(eventPtr, true) * 10**-4;
-                            // Loss (2 bytes - Signed Short)
-                            let loss = view.getInt16(eventPtr + 4, true) / 1000;
-                            // Reflectance (4 bytes - Signed Int)
-                            let reflect = view.getInt32(eventPtr + 6, true) / -1000;
-
-                            fileData[`Ev${i} Dist(m)`] = dist.toFixed(1);
-                            fileData[`Ev${i} Loss(dB)`] = loss.toFixed(3);
-                            fileData[`Ev${i} Reflect(dB)`] = reflect > 0 ? "-" + reflect.toFixed(1) : "N/A";
-                            
-                            eventPtr += 12; // Κάθε event block είναι 12 bytes
+                            data[`Ev${i} Dist(m)`] = dist.toFixed(1);
+                            data[`Ev${i} Loss(dB)`] = loss.toFixed(3);
+                            data[`Ev${i} Reflect(dB)`] = (refl > 0 && refl < 120) ? "-" + refl.toFixed(1) : "N/A";
+                            ptr += 12;
                         }
                     }
-
-                    results.push(fileData);
-                } catch (err) {
-                    console.error("Error with file: " + file.name, err);
-                }
+                    results.push(data);
+                } catch (e) { console.error(e); }
             }
 
-            // Δημιουργία και κατέβασμα του Excel
             const ws = XLSX.utils.json_to_sheet(results);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "OTDR Analysis");
-            XLSX.writeFile(wb, "OTDR_REPORT_POLYCHROPOULOS.xlsx");
-            
-            status.innerText = "Ολοκληρώθηκε για " + results.length + " αρχεία! ✅";
+            XLSX.utils.book_append_sheet(wb, ws, "OTDR Report");
+            XLSX.writeFile(wb, "OTDR_Universal_Report.xlsx");
+            status.innerText = "Η εξαγωγή ολοκληρώθηκε για " + results.length + " αρχεία! ✅";
         }
     </script>
 </body>
