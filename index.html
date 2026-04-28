@@ -2,140 +2,65 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal SOR Converter - Polychropoulos</title>
-    
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#8a2be2">
+    <title>SOR to Excel PRO</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-
+    <script src="https://unpkg.com/otdr-js@1.1.0/dist/otdr.browser.js"></script>
     <style>
-        :root { --purple: #8a2be2; --dark: #0d0d0d; }
-        body { 
-            background-color: var(--dark); color: white; 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            min-height: 100vh; margin: 0; text-align: center;
-        }
-        .container { width: 95%; max-width: 800px; padding: 20px; }
-        h1 { font-size: 2.2rem; letter-spacing: 2px; text-shadow: 0 0 20px var(--purple); margin-bottom: 5px; text-transform: uppercase; }
-        .creator { color: var(--purple); font-weight: bold; font-size: 0.9rem; margin-bottom: 40px; letter-spacing: 3px; }
-        
-        .drop-zone { 
-            border: 2px dashed var(--purple); border-radius: 30px; 
-            padding: 80px 20px; background: rgba(138, 43, 226, 0.05); 
-            cursor: pointer; transition: 0.3s; 
-        }
-        .drop-zone:hover { background: rgba(138, 43, 226, 0.15); border-color: #a04ef6; }
-        
-        .btn { 
-            margin-top: 40px; background: var(--purple); color: white; 
-            border: none; padding: 20px 70px; border-radius: 50px; 
-            font-weight: bold; font-size: 1.2rem; cursor: pointer; 
-            box-shadow: 0 0 20px rgba(138, 43, 226, 0.4); transition: 0.2s;
-        }
-        .btn:hover { background: #a04ef6; transform: scale(1.03); }
-        
-        #status { margin-top: 30px; color: #888; font-family: monospace; font-size: 0.9rem; }
-        input[type="file"] { display: none; }
+        body { background: #0d0d0d; color: white; font-family: sans-serif; text-align: center; padding: 50px; }
+        .box { border: 2px dashed #8a2be2; padding: 40px; border-radius: 20px; cursor: pointer; }
+        .btn { background: #8a2be2; color: white; padding: 15px 40px; border-radius: 50px; border: none; margin-top: 20px; cursor: pointer; font-weight: bold; }
+        #status { margin-top: 20px; color: #888; }
     </style>
 </head>
 <body>
-
-    <div class="container">
-        <h1>CONVERT FILES SOR TO EXCEL</h1>
-        <div class="creator">CREATOR STEFANOS POLYCHROPOULOS</div>
-
-        <div class="drop-zone" onclick="document.getElementById('file-input').click()">
-            <div style="font-size: 60px; margin-bottom: 15px;">📊</div>
-            <p>Σύρετε τον φάκελο με τα αρχεία .sor εδώ<br>ή κάντε κλικ για επιλογή</p>
-            <input type="file" id="file-input" webkitdirectory directory multiple>
-        </div>
-
-        <button class="btn" onclick="processSorFiles()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
-        <div id="status"></div>
+    <h1>SOR TO EXCEL (ACCURATE MODE)</h1>
+    <div class="box" onclick="document.getElementById('files').click()">
+        Σύρετε ή επιλέξτε τα αρχεία .sor
+        <input type="file" id="files" multiple style="display:none">
     </div>
+    <button class="btn" onclick="convert()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
+    <div id="status"></div>
 
     <script>
-        // PWA Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').catch(err => console.log(err));
-            });
-        }
-
-        async function processSorFiles() {
-            const input = document.getElementById('file-input');
+        async function convert() {
+            const fileInput = document.getElementById('files');
             const status = document.getElementById('status');
-            if (!input.files.length) return alert("Παρακαλώ επιλέξτε έναν φάκελο!");
+            if (fileInput.files.length === 0) return alert("Επιλέξτε αρχεία");
 
-            status.innerText = "Ανάλυση αρχείων (Universal Mode)... ⏳";
-            let results = [];
+            status.innerText = "Ανάλυση ακριβείας... ⏳";
+            const results = [];
 
-            for (let file of input.files) {
-                if (!file.name.toLowerCase().endsWith('.sor')) continue;
-
+            for (const file of fileInput.files) {
                 try {
-                    const buffer = await file.arrayBuffer();
-                    const view = new DataView(buffer);
-                    const bytes = new Uint8Array(buffer);
-
-                    // Universal Block Finder
-                    const findBlock = (name) => {
-                        for (let i = 0; i < bytes.length - name.length; i++) {
-                            let match = true;
-                            for (let j = 0; j < name.length; j++) {
-                                if (bytes[i + j] !== name.charCodeAt(j)) { match = false; break; }
-                            }
-                            if (match) return i;
-                        }
-                        return -1;
+                    const arrayBuffer = await file.arrayBuffer();
+                    // Χρήση του επαγγελματικού parser
+                    const sor = new otdr.Sor(arrayBuffer);
+                    
+                    const data = {
+                        "Αρχείο": file.name,
+                        "Wavelength": sor.fixedParams.wavelength,
+                        "Pulse (ns)": sor.fixedParams.pulseWidth,
+                        "Total Length (m)": sor.fixedParams.fiberLength.toFixed(2)
                     };
 
-                    let data = { "Όνομα Αρχείου": file.name };
+                    // Διάβασμα όλων των Events
+                    sor.keyEvents.forEach((ev, i) => {
+                        data[`Ev${i+1} Dist(m)`] = ev.distance.toFixed(2);
+                        data[`Ev${i+1} Loss(dB)`] = ev.loss.toFixed(3);
+                        data[`Ev${i+1} Refl(dB)`] = ev.reflectance.toFixed(1);
+                    });
 
-                    // 1. Wavelength (GenParams)
-                    let pGen = findBlock("GenParams");
-                    if (pGen !== -1) {
-                        data["Wavelength (nm)"] = view.getUint32(pGen + 10, true) / 1000;
-                    }
-
-                    // 2. Pulse & Total Length (FixParams)
-                    let pFix = findBlock("FixParams");
-                    if (pFix !== -1) {
-                        data["Pulse (ns)"] = view.getUint32(pFix + 14, true) / 10;
-                        let rawDist = view.getUint32(pFix + 26, true);
-                        data["Total Length (m)"] = (rawDist * 10**-4).toFixed(2);
-                    }
-
-                    // 3. Events (KeyEvents)
-                    let pKey = findBlock("KeyEvents");
-                    if (pKey !== -1) {
-                        let count = view.getUint16(pKey + 10, true);
-                        data["Total Events"] = count;
-                        
-                        let ptr = pKey + 12;
-                        for (let i = 1; i <= count; i++) {
-                            if (ptr + 12 > buffer.byteLength) break;
-                            let dist = view.getUint32(ptr, true) * 10**-4;
-                            let loss = view.getInt16(ptr + 4, true) / 1000;
-                            let refl = view.getInt32(ptr + 6, true) / -1000;
-
-                            data[`Ev${i} Dist(m)`] = dist.toFixed(1);
-                            data[`Ev${i} Loss(dB)`] = loss.toFixed(3);
-                            data[`Ev${i} Reflect(dB)`] = (refl > 0 && refl < 120) ? "-" + refl.toFixed(1) : "N/A";
-                            ptr += 12;
-                        }
-                    }
                     results.push(data);
-                } catch (e) { console.error(e); }
+                } catch (e) {
+                    console.error("Σφάλμα στο αρχείο " + file.name, e);
+                }
             }
 
             const ws = XLSX.utils.json_to_sheet(results);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "OTDR Report");
-            XLSX.writeFile(wb, "OTDR_Universal_Report.xlsx");
-            status.innerText = "Η εξαγωγή ολοκληρώθηκε για " + results.length + " αρχεία! ✅";
+            XLSX.utils.book_append_sheet(wb, ws, "OTDR Data");
+            XLSX.writeFile(wb, "OTDR_Correct_Report.xlsx");
+            status.innerText = "Ολοκληρώθηκε! ✅";
         }
     </script>
 </body>
