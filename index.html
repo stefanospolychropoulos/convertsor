@@ -2,47 +2,51 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <title>SOR to Excel Professional</title>
+    <title>Universal OTDR SOR Analyzer</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
-        :root { --primary: #00d4ff; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
-        body { background-color: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        .main-card { background: var(--card); padding: 2.5rem; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); width: 100%; max-width: 600px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
-        h1 { background: linear-gradient(90deg, #00d4ff, #0072ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2rem; margin-bottom: 10px; }
-        .upload-area { border: 2px dashed #334155; border-radius: 16px; padding: 2rem; cursor: pointer; background: rgba(15, 23, 42, 0.5); transition: 0.3s; }
-        .upload-area:hover { border-color: var(--primary); }
-        .btn-convert { margin-top: 1.5rem; background: linear-gradient(135deg, #00d4ff 0%, #0072ff 100%); color: white; border: none; padding: 1rem 2rem; border-radius: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.1rem; }
-        #status { margin-top: 1rem; color: #38bdf8; font-family: monospace; font-size: 0.9rem; }
+        :root { --brand: #00f2fe; --bg: #0a0e14; --card: #161b22; }
+        body { background: var(--bg); color: #e6edf3; font-family: 'Segoe UI', sans-serif; padding: 40px; display: flex; justify-content: center; }
+        .main-container { width: 100%; max-width: 1000px; background: var(--card); padding: 30px; border-radius: 15px; border: 1px solid #30363d; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: var(--brand); text-align: center; margin-bottom: 30px; border-bottom: 1px solid #30363d; padding-bottom: 15px; }
+        .drop-zone { border: 2px dashed #4facfe; padding: 40px; text-align: center; border-radius: 10px; cursor: pointer; transition: 0.3s; background: rgba(79, 172, 254, 0.05); }
+        .drop-zone:hover { background: rgba(79, 172, 254, 0.1); }
+        .btn-group { margin-top: 20px; display: flex; gap: 10px; }
+        button { flex: 1; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s; }
+        .btn-excel { background: #238636; color: white; }
+        .btn-excel:hover { background: #2ea043; }
+        #status { margin-top: 20px; padding: 15px; background: #010409; border-radius: 8px; font-family: monospace; font-size: 0.85rem; color: #8b949e; min-height: 50px; }
     </style>
 </head>
 <body>
 
-<div class="main-card">
-    <h1>OTDR Data PRO</h1>
-    <p style="color: #94a3b8; margin-bottom: 20px;">Universal SOR Parser (EXFO, Viavi, Anritsu)</p>
+<div class="main-container">
+    <h2>OTDR Professional Data Extractor</h2>
     
-    <div class="upload-area" onclick="document.getElementById('file-input').click()">
-        <p id="file-name">Επιλέξτε αρχεία .sor</p>
-        <input type="file" id="file-input" multiple style="display:none" accept=".sor" onchange="updateLabel()">
+    <div class="drop-zone" onclick="document.getElementById('file-input').click()">
+        <p id="label">Σύρετε ή επιλέξτε αρχεία .sor (Οποιοδήποτε OTDR)</p>
+        <input type="file" id="file-input" multiple style="display:none" accept=".sor" onchange="updateInfo(this)">
     </div>
 
-    <button class="btn-convert" onclick="processSor()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
-    <div id="status"></div>
+    <div class="btn-group">
+        <button class="btn-excel" onclick="startProcessing()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
+    </div>
+
+    <div id="status">Αναμονή αρχείων...</div>
 </div>
 
 <script>
-function updateLabel() {
-    const input = document.getElementById('file-input');
-    document.getElementById('file-name').innerText = input.files.length + " αρχεία επιλέχθηκαν";
+function updateInfo(input) {
+    document.getElementById('label').innerText = input.files.length + " αρχεία έτοιμα για επεξεργασία.";
 }
 
-async function processSor() {
+async function startProcessing() {
     const input = document.getElementById('file-input');
     const status = document.getElementById('status');
     if (!input.files.length) return alert("Επιλέξτε αρχεία!");
 
-    status.innerText = "Αναζήτηση δεδομένων... ⏳";
-    let results = [];
+    status.innerHTML = "Έναρξη ανάλυσης...<br>";
+    let finalRows = [];
 
     for (let file of input.files) {
         try {
@@ -50,62 +54,74 @@ async function processSor() {
             const bytes = new Uint8Array(buffer);
             const view = new DataView(buffer);
 
-            // Λειτουργία εύρεσης θέσης Block (Case Insensitive)
-            const findBlock = (name) => {
-                const nameBytes = name.split('').map(c => c.charCodeAt(0));
-                for (let i = 0; i < bytes.length - nameBytes.length; i++) {
+            // Universal Block Finder
+            function findBlock(name) {
+                for (let i = 0; i < bytes.length - name.length; i++) {
                     let match = true;
-                    for (let j = 0; j < nameBytes.length; j++) {
-                        if (bytes[i + j] !== nameBytes[j]) { match = false; break; }
+                    for (let j = 0; j < name.length; j++) {
+                        if (bytes[i + j] !== name.charCodeAt(j)) { match = false; break; }
                     }
                     if (match) return i;
                 }
                 return -1;
-            };
-
-            let row = { "Αρχείο": file.name };
-
-            // 1. Εύρεση FxdParams (Μήκος)
-            const fxdPos = findBlock("FxdParams");
-            if (fxdPos !== -1) {
-                const distOffset = fxdPos + 26; // Standard Bellcore offset για Total Length
-                if (distOffset + 4 <= bytes.length) {
-                    const rawDist = view.getUint32(distOffset, true);
-                    row["Συνολικό Μήκος (m)"] = (rawDist * 0.0001).toFixed(2);
-                }
             }
 
-            // 2. Εύρεση KeyEvents (Events & Loss)
-            const keyPos = findBlock("KeyEvents");
-            if (keyPos !== -1) {
-                const numEvents = view.getUint16(keyPos + 10, true);
-                let ptr = keyPos + 12;
+            // Text Extractor for Names
+            function readString(pos, len) {
+                return new TextDecoder().decode(bytes.slice(pos, pos + len)).replace(/\0/g, '').trim();
+            }
+
+            let row = { "Όνομα Αρχείου": file.name };
+
+            // 1. Γενικές Πληροφορίες (GenParams)
+            let gen = findBlock("GenParams");
+            if (gen !== -1) {
+                // Η ονομασία της ίνας είναι συνήθως μετά την έκδοση (περίπου +10 bytes)
+                row["Fiber ID"] = readString(gen + 10, 20);
+            }
+
+            // 2. Ρυθμίσεις Μέτρησης (FxdParams)
+            let fxd = findBlock("FxdParams");
+            if (fxd !== -1) {
+                row["Μήκος Κύματος"] = (view.getUint32(fxd + 2, true) / 1000).toFixed(0) + " nm";
+                row["Pulse Width (ns)"] = view.getInt32(fxd + 14, true);
+                row["Averaging Time (s)"] = view.getInt32(fxd + 18, true);
+                row["Συνολικό Μήκος (m)"] = (view.getUint32(fxd + 26, true) * 0.0001).toFixed(2);
+            }
+
+            // 3. Πίνακας Events (KeyEvents)
+            let key = findBlock("KeyEvents");
+            if (key !== -1) {
+                let numEvents = view.getUint16(key + 10, true);
+                let totalLoss = 0;
+                let ptr = key + 12;
 
                 for (let i = 1; i <= numEvents; i++) {
-                    if (ptr + 12 > bytes.length) break;
-                    let d = view.getUint32(ptr, true) * 0.0001;
-                    let l = view.getInt16(ptr + 4, true) * 0.001;
-                    let r = view.getInt32(ptr + 6, true) * -0.001;
+                    let dist = view.getUint32(ptr, true) * 0.0001;
+                    let loss = view.getInt16(ptr + 4, true) * 0.001;
+                    let refl = view.getInt32(ptr + 6, true) * -0.001;
 
-                    row[`Ev${i} Dist(m)`] = d.toFixed(2);
-                    row[`Ev${i} Loss(dB)`] = l.toFixed(3);
-                    row[`Ev${i} Refl(dB)`] = (r > 0 && r < 100) ? "-" + r.toFixed(1) : "N/A";
+                    row[`Ev${i} Dist(m)`] = dist.toFixed(2);
+                    row[`Ev${i} Loss(dB)`] = loss.toFixed(3);
+                    row[`Ev${i} Refl(dB)`] = (refl > 0 && refl < 100) ? "-" + refl.toFixed(1) : "N/A";
+                    
+                    if (!isNaN(loss)) totalLoss += loss;
                     ptr += 12;
                 }
+                row["Συνολικά dB"] = totalLoss.toFixed(3);
             }
-            results.push(row);
-        } catch (e) { console.error(e); }
+
+            finalRows.push(row);
+            status.innerHTML += `✅ Ανάλυση ${file.name} επιτυχής.<br>`;
+        } catch (e) {
+            status.innerHTML += `❌ Σφάλμα στο ${file.name}.<br>`;
+        }
     }
 
-    if (results.length > 0) {
-        const ws = XLSX.utils.json_to_sheet(results);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "OTDR Data");
-        XLSX.writeFile(wb, "OTDR_Final_Report.xlsx");
-        status.innerText = "Επιτυχία! Το Excel δημιουργήθηκε. ✅";
-    } else {
-        status.innerText = "Σφάλμα: Δεν βρέθηκαν δεδομένα στα αρχεία. ❌";
-    }
+    const ws = XLSX.utils.json_to_sheet(finalRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "OTDR Data");
+    XLSX.writeFile(wb, "OTDR_Universal_Report.xlsx");
 }
 </script>
 </body>
