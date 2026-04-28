@@ -2,108 +2,102 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate SOR to Excel Converter</title>
+    <title>OTDR SOR Universal Converter v5</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
-        :root { --main: #00d4ff; --bg: #0d1117; }
+        :root { --primary: #00d4ff; --bg: #0d1117; --card: #161b22; }
         body { background: var(--bg); color: #c9d1d9; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        .card { background: #161b22; padding: 40px; border-radius: 20px; border: 1px solid #30363d; width: 100%; max-width: 600px; text-align: center; }
-        h1 { color: var(--main); margin-bottom: 20px; }
-        .drop-zone { border: 2px dashed #484f58; padding: 40px; border-radius: 12px; cursor: pointer; margin-bottom: 25px; transition: 0.3s; }
-        .drop-zone:hover { border-color: var(--main); background: rgba(0, 212, 255, 0.05); }
-        .btn { background: #238636; color: white; border: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.1rem; }
-        #status { margin-top: 20px; font-family: monospace; color: #8b949e; text-align: left; max-height: 150px; overflow-y: auto; }
+        .container { background: var(--card); padding: 40px; border-radius: 20px; border: 1px solid #30363d; width: 90%; max-width: 700px; text-align: center; }
+        h1 { color: var(--primary); margin-top: 0; }
+        .drop-zone { border: 2px dashed #4facfe; padding: 50px; border-radius: 15px; cursor: pointer; margin: 20px 0; background: rgba(79, 172, 254, 0.05); }
+        .btn { background: #238636; color: white; border: none; padding: 15px 40px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.1rem; }
+        #log { margin-top: 20px; text-align: left; font-family: monospace; font-size: 12px; color: #8b949e; background: #010409; padding: 15px; border-radius: 10px; max-height: 200px; overflow-y: auto; }
     </style>
 </head>
 <body>
+    <div class="container">
+        <h1>SOR Professional Extractor</h1>
+        <p>Μετατροπή με πλήρη ανάλυση Events (dB & Reflectance)</p>
+        
+        <div class="drop-zone" onclick="document.getElementById('files').click()">
+            <p id="label">Σύρετε ή επιλέξτε αρχεία .sor</p>
+            <input type="file" id="files" multiple style="display:none" onchange="document.getElementById('label').innerText = this.files.length + ' αρχεία'">
+        </div>
 
-<div class="card">
-    <h1>SOR Data Extractor</h1>
-    <p>Μετατροπή για EXFO, Viavi, Anritsu & άλλους</p>
-    
-    <div class="drop-zone" onclick="document.getElementById('file-input').click()">
-        <p id="label">Επιλέξτε ή σύρετε αρχεία .sor</p>
-        <input type="file" id="file-input" multiple style="display:none" onchange="document.getElementById('label').innerText = this.files.length + ' αρχεία'">
+        <button class="btn" onclick="process()">ΔΗΜΙΟΥΡΓΙΑ EXCEL ΤΩΡΑ</button>
+        <div id="log">Έτοιμο για επεξεργασία...</div>
     </div>
 
-    <button class="btn" onclick="startExtraction()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
-    <div id="status"></div>
-</div>
+    <script>
+    async function process() {
+        const input = document.getElementById('files');
+        const log = document.getElementById('log');
+        if(!input.files.length) return alert("Επιλέξτε αρχεία!");
+        
+        log.innerHTML = "Έναρξη ανάλυσης...<br>";
+        let results = [];
 
-<script>
-async function startExtraction() {
-    const input = document.getElementById('file-input');
-    const status = document.getElementById('status');
-    if (!input.files.length) return alert("Παρακαλώ επιλέξτε αρχεία!");
+        for(let file of input.files) {
+            try {
+                const buffer = await file.arrayBuffer();
+                const view = new DataView(buffer);
+                const bytes = new Uint8Array(buffer);
 
-    status.innerHTML = "Ανάλυση σε εξέλιξη...<br>";
-    let results = [];
+                // Εύρεση Tags με Pattern Matching
+                const findTag = (tag) => {
+                    for(let i=0; i<bytes.length-tag.length; i++) {
+                        let m = true;
+                        for(let j=0; j<tag.length; j++) if(bytes[i+j] !== tag.charCodeAt(j)) { m=false; break; }
+                        if(m) return i;
+                    } return -1;
+                };
 
-    for (let file of input.files) {
-        try {
-            const buffer = await file.arrayBuffer();
-            const bytes = new Uint8Array(buffer);
-            const view = new DataView(buffer);
+                let data = { "Αρχείο": file.name };
 
-            const findOffset = (tag) => {
-                for(let i=0; i<bytes.length-tag.length; i++) {
-                    let m = true;
-                    for(let j=0; j<tag.length; j++) if(bytes[i+j] !== tag.charCodeAt(j)) { m=false; break; }
-                    if(m) return i;
-                } return -1;
-            };
-
-            let data = { "Αρχείο": file.name };
-
-            // 1. Γενικά & Ονομασία (GenParams)
-            let gen = findOffset("GenParams");
-            if (gen !== -1) {
-                let id = "";
-                for(let i=gen+10; i<gen+30; i++) if(bytes[i] > 31) id += String.fromCharCode(bytes[i]);
-                data["Fiber ID"] = id.trim();
-            }
-
-            // 2. Ρυθμίσεις & Συνολικό Μήκος (FxdParams)
-            let fxd = findOffset("FxdParams");
-            if (fxd !== -1) {
-                data["Μήκος Κύματος"] = (view.getUint32(fxd + 2, true) / 1000) + " nm";
-                data["Pulse (ns)"] = view.getInt32(fxd + 14, true);
-                data["Averaging (s)"] = view.getInt32(fxd + 18, true);
-                data["Συνολικό Μήκος (m)"] = (view.getUint32(fxd + 26, true) * 0.0001).toFixed(2);
-            }
-
-            // 3. Events (Loss & Reflectance)
-            let key = findOffset("KeyEvents");
-            if (key !== -1) {
-                let num = view.getUint16(key + 10, true);
-                let totalLoss = 0;
-                let ptr = key + 12;
-                for (let i = 1; i <= num; i++) {
-                    let d = (view.getUint32(ptr, true) * 0.0001).toFixed(2);
-                    let l = (view.getInt16(ptr + 4, true) * 0.001);
-                    let r = (view.getInt32(ptr + 6, true) * -0.001).toFixed(1);
-                    
-                    data[`Ev${i} Απόσταση(m)`] = d;
-                    data[`Ev${i} Loss(dB)`] = l.toFixed(3);
-                    data[`Ev${i} Refl(dB)`] = (r > 0 && r < 100) ? "-" + r : "N/A";
-                    
-                    totalLoss += l;
-                    ptr += 12;
+                // 1. Σταθερές Παράμετροι (Wavelength, Pulse, Time, Length)
+                let fxd = findTag("FxdParams");
+                if(fxd !== -1) {
+                    data["Wavelength"] = (view.getUint32(fxd + 2, true) / 1000) + " nm";
+                    data["Pulse (ns)"] = view.getInt32(fxd + 14, true);
+                    data["Time (s)"] = view.getInt32(fxd + 18, true);
+                    data["Συνολικό Μήκος (m)"] = (view.getUint32(fxd + 26, true) * 0.0001).toFixed(2);
                 }
-                data["Συνολικά dB (Link)"] = totalLoss.toFixed(3);
-            }
-            results.push(data);
-            status.innerHTML += "✅ Επιτυχία: " + file.name + "<br>";
-        } catch (e) {
-            status.innerHTML += "❌ Σφάλμα: " + file.name + "<br>";
-        }
-    }
 
-    const ws = XLSX.utils.json_to_sheet(results);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "OTDR Analysis");
-    XLSX.writeFile(wb, "OTDR_Final_Results.xlsx");
-}
-</script>
+                // 2. Events (Loss & Reflectance)
+                let key = findTag("KeyEvents");
+                if(key !== -1) {
+                    let num = view.getUint16(key + 10, true);
+                    let ptr = key + 12;
+                    let linkLoss = 0;
+
+                    for(let i=1; i<=num; i++) {
+                        if(ptr + 10 > bytes.length) break;
+                        let dist = (view.getUint32(ptr, true) * 0.0001).toFixed(2);
+                        let loss = (view.getInt16(ptr + 4, true) * 0.001);
+                        let refl = (view.getInt32(ptr + 6, true) * -0.001).toFixed(1);
+
+                        data[`Ev${i} Dist(m)`] = dist;
+                        data[`Ev${i} Loss(dB)`] = loss.toFixed(3);
+                        data[`Ev${i} Refl(dB)`] = (refl > 0 && refl < 100) ? "-" + refl : "N/A";
+                        
+                        linkLoss += loss;
+                        ptr += 12;
+                    }
+                    data["Συνολικό Link Loss (dB)"] = linkLoss.toFixed(3);
+                }
+                results.push(data);
+                log.innerHTML += `✅ Επιτυχία: ${file.name}<br>`;
+            } catch(e) {
+                log.innerHTML += `❌ Σφάλμα: ${file.name}<br>`;
+            }
+        }
+
+        const ws = XLSX.utils.json_to_sheet(results);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "OTDR_Report");
+        XLSX.writeFile(wb, "OTDR_Final_Data.xlsx");
+        log.innerHTML += "<br><strong>Το Excel δημιουργήθηκε!</strong>";
+    }
+    </script>
 </body>
 </html>
