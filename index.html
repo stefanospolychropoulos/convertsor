@@ -2,51 +2,141 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <title>Universal OTDR SOR Analyzer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal OTDR SOR Analyzer Pro</title>
+    
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
     <style>
-        :root { --brand: #00f2fe; --bg: #0a0e14; --card: #161b22; }
-        body { background: var(--bg); color: #e6edf3; font-family: 'Segoe UI', sans-serif; padding: 40px; display: flex; justify-content: center; }
-        .main-container { width: 100%; max-width: 1000px; background: var(--card); padding: 30px; border-radius: 15px; border: 1px solid #30363d; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h2 { color: var(--brand); text-align: center; margin-bottom: 30px; border-bottom: 1px solid #30363d; padding-bottom: 15px; }
-        .drop-zone { border: 2px dashed #4facfe; padding: 40px; text-align: center; border-radius: 10px; cursor: pointer; transition: 0.3s; background: rgba(79, 172, 254, 0.05); }
-        .drop-zone:hover { background: rgba(79, 172, 254, 0.1); }
-        .btn-group { margin-top: 20px; display: flex; gap: 10px; }
-        button { flex: 1; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s; }
-        .btn-excel { background: #238636; color: white; }
-        .btn-excel:hover { background: #2ea043; }
-        #status { margin-top: 20px; padding: 15px; background: #010409; border-radius: 8px; font-family: monospace; font-size: 0.85rem; color: #8b949e; min-height: 50px; }
+        :root {
+            --primary: #00f2fe;
+            --secondary: #4facfe;
+            --bg: #0d1117;
+            --card: #161b22;
+            --text: #c9d1d9;
+            --success: #238636;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card);
+            width: 100%;
+            max-width: 850px;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.6);
+            border: 1px solid #30363d;
+            text-align: center;
+        }
+
+        h1 {
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        p.description {
+            color: #8b949e;
+            margin-bottom: 30px;
+            font-size: 1rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #484f58;
+            border-radius: 15px;
+            padding: 50px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(1, 4, 9, 0.3);
+            margin-bottom: 30px;
+        }
+
+        .drop-zone:hover {
+            border-color: var(--primary);
+            background: rgba(0, 242, 254, 0.05);
+        }
+
+        .drop-zone p { color: #8b949e; font-size: 1.1rem; }
+
+        .btn-convert {
+            background: linear-gradient(135deg, var(--success) 0%, #2ea043 100%);
+            color: white;
+            border: none;
+            padding: 18px 40px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn-convert:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(35, 134, 54, 0.4); }
+        .btn-convert:active { transform: translateY(0); }
+
+        #log {
+            margin-top: 25px;
+            text-align: left;
+            font-family: 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #58a6ff;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #010409;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+
+        .footer { margin-top: 20px; color: #484f58; font-size: 0.75rem; }
     </style>
 </head>
 <body>
 
-<div class="main-container">
-    <h2>OTDR Professional Data Extractor</h2>
-    
+<div class="container">
+    <h1>OTDR SOR Analyzer</h1>
+    <p class="description">Επαγγελματική Εξαγωγή Δεδομένων για οποιοδήποτε αρχείο .sor</p>
+
     <div class="drop-zone" onclick="document.getElementById('file-input').click()">
-        <p id="label">Σύρετε ή επιλέξτε αρχεία .sor (Οποιοδήποτε OTDR)</p>
-        <input type="file" id="file-input" multiple style="display:none" accept=".sor" onchange="updateInfo(this)">
+        <p id="label">Σύρετε τα αρχεία σας εδώ ή κάντε κλικ για επιλογή</p>
+        <input type="file" id="file-input" multiple style="display:none" accept=".sor" onchange="updateLabel(this)">
     </div>
 
-    <div class="btn-group">
-        <button class="btn-excel" onclick="startProcessing()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
-    </div>
-
-    <div id="status">Αναμονή αρχείων...</div>
+    <button class="btn-convert" onclick="processSorFiles()">ΔΗΜΙΟΥΡΓΙΑ EXCEL REPORT</button>
+    
+    <div id="log">Αναμονή αρχείων για επεξεργασία...</div>
+    
+    <div class="footer">Universal Telcordia SR-4731 / Bellcore Compliance</div>
 </div>
 
 <script>
-function updateInfo(input) {
-    document.getElementById('label').innerText = input.files.length + " αρχεία έτοιμα για επεξεργασία.";
+function updateLabel(input) {
+    document.getElementById('label').innerText = input.files.length + " αρχεία επιλέχθηκαν";
 }
 
-async function startProcessing() {
+async function processSorFiles() {
     const input = document.getElementById('file-input');
-    const status = document.getElementById('status');
-    if (!input.files.length) return alert("Επιλέξτε αρχεία!");
+    const log = document.getElementById('log');
+    if (!input.files.length) return alert("Παρακαλώ επιλέξτε αρχεία .sor!");
 
-    status.innerHTML = "Έναρξη ανάλυσης...<br>";
-    let finalRows = [];
+    log.innerHTML = "Έναρξη ανάλυσης...<br>";
+    let results = [];
 
     for (let file of input.files) {
         try {
@@ -54,7 +144,7 @@ async function startProcessing() {
             const bytes = new Uint8Array(buffer);
             const view = new DataView(buffer);
 
-            // Universal Block Finder
+            // Universal Finder για Blocks (Map, GenParams, FxdParams, KeyEvents)
             function findBlock(name) {
                 for (let i = 0; i < bytes.length - name.length; i++) {
                     let match = true;
@@ -66,30 +156,31 @@ async function startProcessing() {
                 return -1;
             }
 
-            // Text Extractor for Names
             function readString(pos, len) {
                 return new TextDecoder().decode(bytes.slice(pos, pos + len)).replace(/\0/g, '').trim();
             }
 
-            let row = { "Όνομα Αρχείου": file.name };
+            let row = { "Αρχείο": file.name };
 
-            // 1. Γενικές Πληροφορίες (GenParams)
+            // 1. Γενικές Πληροφορίες (Fiber ID)
             let gen = findBlock("GenParams");
-            if (gen !== -1) {
-                // Η ονομασία της ίνας είναι συνήθως μετά την έκδοση (περίπου +10 bytes)
-                row["Fiber ID"] = readString(gen + 10, 20);
-            }
+            if (gen !== -1) { row["Fiber ID"] = readString(gen + 10, 25); }
 
-            // 2. Ρυθμίσεις Μέτρησης (FxdParams)
+            // 2. Ρυθμίσεις & Συνολικά (FxdParams)
             let fxd = findBlock("FxdParams");
+            let distScale = 0.0001; // Default
             if (fxd !== -1) {
+                // Υπολογισμός Scale βάσει Resolution
+                let res = view.getInt32(fxd + 22, true);
+                if (res > 0) distScale = res * 1e-9; 
+
                 row["Μήκος Κύματος"] = (view.getUint32(fxd + 2, true) / 1000).toFixed(0) + " nm";
-                row["Pulse Width (ns)"] = view.getInt32(fxd + 14, true);
-                row["Averaging Time (s)"] = view.getInt32(fxd + 18, true);
-                row["Συνολικό Μήκος (m)"] = (view.getUint32(fxd + 26, true) * 0.0001).toFixed(2);
+                row["Pulse (ns)"] = view.getInt32(fxd + 14, true);
+                row["Time (s)"] = view.getInt32(fxd + 18, true);
+                row["Συνολικό Μήκος (m)"] = (view.getUint32(fxd + 26, true) * distScale).toFixed(2);
             }
 
-            // 3. Πίνακας Events (KeyEvents)
+            // 3. Events (Loss & Reflectance)
             let key = findBlock("KeyEvents");
             if (key !== -1) {
                 let numEvents = view.getUint16(key + 10, true);
@@ -97,32 +188,35 @@ async function startProcessing() {
                 let ptr = key + 12;
 
                 for (let i = 1; i <= numEvents; i++) {
-                    let dist = view.getUint32(ptr, true) * 0.0001;
-                    let loss = view.getInt16(ptr + 4, true) * 0.001;
-                    let refl = view.getInt32(ptr + 6, true) * -0.001;
+                    let d = view.getUint32(ptr, true) * distScale;
+                    let l = view.getInt16(ptr + 4, true) * 0.001;
+                    let r = view.getInt32(ptr + 6, true) * -0.001;
 
-                    row[`Ev${i} Dist(m)`] = dist.toFixed(2);
-                    row[`Ev${i} Loss(dB)`] = loss.toFixed(3);
-                    row[`Ev${i} Refl(dB)`] = (refl > 0 && refl < 100) ? "-" + refl.toFixed(1) : "N/A";
+                    row[`Ev${i} Dist(m)`] = d.toFixed(2);
+                    row[`Ev${i} Loss(dB)`] = l.toFixed(3);
+                    row[`Ev${i} Refl(dB)`] = (r > 0 && r < 120) ? "-" + r.toFixed(1) : "N/A";
                     
-                    if (!isNaN(loss)) totalLoss += loss;
+                    if (!isNaN(l)) totalLoss += l;
                     ptr += 12;
                 }
-                row["Συνολικά dB"] = totalLoss.toFixed(3);
+                row["Συνολικά dB (Link Loss)"] = totalLoss.toFixed(3);
             }
 
-            finalRows.push(row);
-            status.innerHTML += `✅ Ανάλυση ${file.name} επιτυχής.<br>`;
+            results.push(row);
+            log.innerHTML += `✅ ${file.name}: Ολοκληρώθηκε<br>`;
         } catch (e) {
-            status.innerHTML += `❌ Σφάλμα στο ${file.name}.<br>`;
+            log.innerHTML += `❌ ${file.name}: Σφάλμα κατά την ανάγνωση<br>`;
         }
     }
 
-    const ws = XLSX.utils.json_to_sheet(finalRows);
+    // Εξαγωγή σε Excel
+    const ws = XLSX.utils.json_to_sheet(results);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "OTDR Data");
-    XLSX.writeFile(wb, "OTDR_Universal_Report.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "OTDR_REPORT");
+    XLSX.writeFile(wb, "OTDR_Final_Report.xlsx");
+    log.innerHTML += "<br><strong>Επιτυχία! Το Excel κατέβηκε.</strong>";
 }
 </script>
+
 </body>
 </html>
