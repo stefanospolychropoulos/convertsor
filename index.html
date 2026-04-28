@@ -7,25 +7,50 @@
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#8a2be2">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/732/732220.png">
-
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
     <style>
-        :root { --purple: #8a2be2; --dark: #0d0d0d; --glass: rgba(138, 43, 226, 0.1); }
-        body { background-color: var(--dark); color: white; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; }
+        :root { --purple: #8a2be2; --dark: #0d0d0d; }
+        body { 
+            background-color: var(--dark); 
+            color: white; 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh; 
+            margin: 0; 
+        }
+        .container { text-align: center; width: 90%; max-width: 700px; }
+        h1 { font-size: 2.2rem; letter-spacing: 2px; text-shadow: 0 0 20px var(--purple); margin-bottom: 5px; }
+        .creator { color: var(--purple); font-weight: bold; font-size: 0.9rem; margin-bottom: 40px; letter-spacing: 2px; }
         
-        .container { padding: 20px; width: 90%; max-width: 600px; }
-        h1 { font-size: 2rem; letter-spacing: 2px; margin-bottom: 5px; text-shadow: 0 0 15px var(--purple); }
-        .creator { color: var(--purple); font-weight: bold; font-size: 0.9rem; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 1px; }
+        .drop-zone { 
+            border: 2px dashed var(--purple); 
+            border-radius: 25px; 
+            padding: 80px 20px; 
+            background: rgba(138, 43, 226, 0.05); 
+            cursor: pointer; 
+            transition: 0.3s; 
+        }
+        .drop-zone:hover { background: rgba(138, 43, 226, 0.15); border-color: #a04ef6; }
         
-        .drop-zone { border: 2px dashed var(--purple); border-radius: 20px; padding: 60px 20px; background: var(--glass); cursor: pointer; transition: 0.3s; position: relative; }
-        .drop-zone:hover { background: rgba(138, 43, 226, 0.2); border-color: #a04ef6; transform: translateY(-2px); }
-        
-        .btn { margin-top: 30px; background: var(--purple); color: white; border: none; padding: 16px 45px; border-radius: 50px; font-weight: bold; font-size: 1.1rem; cursor: pointer; transition: 0.3s; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
+        .btn { 
+            margin-top: 35px; 
+            background: var(--purple); 
+            color: white; 
+            border: none; 
+            padding: 18px 60px; 
+            border-radius: 50px; 
+            font-weight: bold; 
+            font-size: 1.1rem; 
+            cursor: pointer; 
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.4);
+        }
         .btn:hover { background: #a04ef6; transform: scale(1.05); }
         
-        #status { margin-top: 25px; font-family: monospace; color: #888; font-size: 0.9rem; min-height: 20px; }
+        #status { margin-top: 25px; color: #888; font-family: monospace; font-size: 0.85rem; }
         input[type="file"] { display: none; }
     </style>
 </head>
@@ -36,61 +61,92 @@
         <div class="creator">CREATOR STEFANOS POLYCHROPOULOS</div>
 
         <div class="drop-zone" onclick="document.getElementById('file-input').click()">
-            <div style="font-size: 40px; margin-bottom: 15px;">📂</div>
-            <p>Σύρετε τον φάκελο με τα αρχεία .sor εδώ<br><span style="color: var(--purple); font-size: 0.8rem;">ή κάντε κλικ για επιλογή</span></p>
+            <div style="font-size: 50px; margin-bottom: 10px;">📊</div>
+            <p>Drag & Drop τον φάκελο με τα .sor εδώ<br>ή κάντε κλικ για αναζήτηση</p>
             <input type="file" id="file-input" webkitdirectory directory multiple>
         </div>
 
-        <button class="btn" onclick="processSorFiles()">ΕΞΑΓΩΓΗ ΣΕ EXCEL</button>
+        <button class="btn" onclick="processSorFiles()">ΕΞΑΓΩΓΗ EXCEL</button>
         <div id="status"></div>
     </div>
 
     <script>
-        // Εγγραφή Service Worker για PWA
+        // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js');
+            window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
         }
 
         async function processSorFiles() {
             const input = document.getElementById('file-input');
             const status = document.getElementById('status');
-            if (!input.files.length) return alert("Παρακαλώ επιλέξτε έναν φάκελο!");
+            if (!input.files.length) return alert("Παρακαλώ επιλέξτε φάκελο!");
 
-            status.innerText = "Ανάλυση αρχείων EXFO... Παρακαλώ περιμένετε.";
+            status.innerText = "Επεξεργασία αρχείων EXFO... ⏳";
             let results = [];
 
             for (let file of input.files) {
                 if (!file.name.toLowerCase().endsWith('.sor')) continue;
 
-                const buffer = await file.arrayBuffer();
-                const view = new DataView(buffer);
-                
-                // Δημιουργία γραμμής για το Excel με τα δεδομένα που ζήτησες
-                let data = {
-                    "File Name": file.name,
-                    "Wavelength": "1550 nm",
-                    "Pulse Width": "100 ns",
-                    "Total Length (m)": (Math.random() * 5000 + 1000).toFixed(2),
-                    "Total Loss (dB)": (Math.random() * 2).toFixed(3),
-                    "Thresholds": "Pass",
-                };
+                try {
+                    const buffer = await file.arrayBuffer();
+                    const view = new DataView(buffer);
+                    const decoder = new TextDecoder('ascii');
+                    const content = decoder.decode(buffer);
 
-                // Δυναμική προσθήκη Events (Distance, Loss, Reflection)
-                for(let i=1; i<=8; i++) {
-                    data[`Ev${i} Dist(m)`] = (i * 300).toFixed(1);
-                    data[`Ev${i} Loss(dB)`] = (Math.random() * 0.1).toFixed(3);
-                    data[`Ev${i} Reflect(dB)`] = "-" + (Math.random() * 10 + 40).toFixed(1);
+                    let fileData = { "File Name": file.name };
+
+                    // --- BINARY PARSING LOGIC ---
+                    
+                    // 1. General Parameters (Wavelength)
+                    if (content.includes("GenParams")) {
+                        let pos = content.indexOf("GenParams");
+                        fileData["Wavelength (nm)"] = view.getUint32(pos + 10, true) / 1000;
+                    }
+
+                    // 2. Fixed Parameters (Pulse, Total Length)
+                    if (content.includes("FixParams")) {
+                        let pos = content.indexOf("FixParams");
+                        fileData["Pulse (ns)"] = view.getUint32(pos + 14, true) / 10;
+                        // Συνολικό μήκος σε μέτρα (μετατροπή από mm)
+                        fileData["Total Length (m)"] = (view.getUint32(pos + 26, true) * 10**-4).toFixed(2);
+                    }
+
+                    // 3. Key Events (Events Table)
+                    if (content.includes("KeyEvents")) {
+                        let pos = content.indexOf("KeyEvents");
+                        let eventCount = view.getUint16(pos + 10, true);
+                        fileData["Total Events"] = eventCount;
+
+                        let eventPtr = pos + 12;
+                        for (let i = 1; i <= eventCount; i++) {
+                            // Απόσταση Event (4 bytes)
+                            let dist = view.getUint32(eventPtr, true) * 10**-4;
+                            // Loss (2 bytes - Signed Short)
+                            let loss = view.getInt16(eventPtr + 4, true) / 1000;
+                            // Reflectance (4 bytes - Signed Int)
+                            let reflect = view.getInt32(eventPtr + 6, true) / -1000;
+
+                            fileData[`Ev${i} Dist(m)`] = dist.toFixed(1);
+                            fileData[`Ev${i} Loss(dB)`] = loss.toFixed(3);
+                            fileData[`Ev${i} Reflect(dB)`] = reflect > 0 ? "-" + reflect.toFixed(1) : "N/A";
+                            
+                            eventPtr += 12; // Κάθε event block είναι 12 bytes
+                        }
+                    }
+
+                    results.push(fileData);
+                } catch (err) {
+                    console.error("Error with file: " + file.name, err);
                 }
-
-                results.push(data);
             }
 
+            // Δημιουργία και κατέβασμα του Excel
             const ws = XLSX.utils.json_to_sheet(results);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "OTDR Analysis");
-            XLSX.writeFile(wb, "OTDR_Report_Polychropoulos.xlsx");
+            XLSX.writeFile(wb, "OTDR_REPORT_POLYCHROPOULOS.xlsx");
             
-            status.innerText = "Η εξαγωγή ολοκληρώθηκε για " + results.length + " αρχεία!";
+            status.innerText = "Ολοκληρώθηκε για " + results.length + " αρχεία! ✅";
         }
     </script>
 </body>
